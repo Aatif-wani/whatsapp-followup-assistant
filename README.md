@@ -1,29 +1,54 @@
 # WhatsApp Follow-up Assistant
 
-A Chrome Extension (Manifest V3) that watches **WhatsApp Web**, detects messages you send
-that haven't been replied to, and reminds you to follow up — optionally with an
-AI-drafted follow-up message via the OpenAI API.
+A Chrome Extension (Manifest V3) that watches **WhatsApp Web** and helps you never drop a
+conversation — in either direction:
+
+- **Messages you sent that haven't been replied to** — reminds you to follow up with them.
+- **Messages you received that you haven't replied to yet** — reminds you not to leave
+  people on seen.
+
+Optionally, it can also draft an AI-generated reply suggestion for you via the OpenAI API.
 
 > ⚠️ Not affiliated with or endorsed by WhatsApp Inc. / Meta. WhatsApp Web's DOM is
 > unofficial and can change at any time; see [Limitations](#limitations--maintenance) below.
 
 ---
 
+## 🙋 A note on how this was built
+
+I'm a first-year Computer Science student, and I don't actually know TypeScript. This
+whole project was **vibe-coded** — built by describing what I wanted to AI models
+(ChatGPT for planning out the design, Claude for writing and debugging the actual code),
+rather than writing it line-by-line myself from existing knowledge. It took a lot of back
+and forth and a lot of real bugs before it worked: a popup that rendered at the wrong
+size, a content script that silently crashed because of a module error, and WhatsApp's
+own page structure changing in ways that broke detection more than once. Each one took
+real debugging — reading console errors, inspecting the page's HTML, and trying again —
+even without deep prior knowledge of the underlying code.
+
+I'm sharing this openly rather than hiding it, because I think it's a fair and honest
+description of how the project came together, and I'm still learning.
+
+---
+
 ## ✨ Features
 
-- **Outgoing message detection** — a content script observes the active WhatsApp Web
-  conversation and detects messages you send.
-- **Reply detection** — automatically clears a pending follow-up once the contact replies.
+- **Two-way tracking**
+  - "Waiting on them" — you messaged, they haven't replied.
+  - "Your turn to reply" — they messaged, you haven't replied (so you don't leave
+    someone on seen).
+- **Reply detection** — automatically clears a pending follow-up once the other side
+  responds, in either direction.
 - **Scheduled reminders** — uses `chrome.alarms` to reliably fire reminders even if the
   service worker has been unloaded in the meantime.
 - **Desktop notifications** — `chrome.notifications` with quick actions ("Snooze 1h",
   "Mark as replied") right on the notification.
 - **Popup dashboard** — see pending / overdue / replied-today counts and manage each
   follow-up (snooze, dismiss, mark replied, request an AI suggestion).
-- **Settings page** — configure delay/interval/max-reminders, notifications, ignored
-  contacts, and OpenAI integration.
-- **AI-generated follow-up suggestions** — optional OpenAI Chat Completions integration
-  drafts a short, natural follow-up message for a given thread.
+- **Settings page** — configure delay/interval/max-reminders for both directions,
+  notifications, ignored contacts, and OpenAI integration.
+- **AI-generated reply suggestions** — optional OpenAI Chat Completions integration
+  drafts a short, natural reply or follow-up message for a given thread.
 - **Typed, layered architecture** — `services/`, `hooks/`, `components/`, `types/`,
   `utils/`, with the background service worker as the single source of business logic.
 
@@ -85,8 +110,8 @@ whatsapp-followup-assistant/
   small, typed classes. Nothing else in the codebase calls `chrome.storage`,
   `chrome.alarms`, or `chrome.notifications` directly.
 - **`followup.service.ts`** is the single orchestrator for the follow-up lifecycle
-  (create → remind → snooze/dismiss/reply). The background service worker is a thin
-  message router that delegates into this service.
+  (create → remind → snooze/dismiss/reply), for both tracking directions. The background
+  service worker is a thin message router that delegates into this service.
 - **`content/whatsapp-observer.ts`** isolates all WhatsApp DOM selectors in one file,
   so future WhatsApp markup changes only require updating this file.
 - **UI (`popup/`, `options/`)** never talks to `chrome.storage` directly — it goes
@@ -141,12 +166,17 @@ toolbar icon → *Options*) to configure:
 
 - **Enable tracking** — master on/off switch.
 - **Desktop notifications** — toggle system notifications.
-- **Follow-up delay** — minutes to wait after sending before considering a message due.
+- **Follow-up delay** — minutes to wait after sending before considering a message due
+  for a follow-up.
 - **Reminder interval** — minutes between repeated reminders if still unanswered.
 - **Maximum reminders** — cap on repeated notifications per message.
+- **Track incoming replies** — toggle whether the extension also reminds you to reply
+  to messages sent to you.
+- **Incoming reply delay** — minutes to wait after receiving a message before reminding
+  you to reply.
 - **AI suggestions** — enable and provide an OpenAI API key + model to get drafted
-  follow-up messages. The key is stored only in `chrome.storage.local` on your machine
-  and is sent solely to `api.openai.com`.
+  reply/follow-up messages. The key is stored only in `chrome.storage.local` on your
+  machine and is sent solely to `api.openai.com`.
 - **Ignored contacts** — chat names that should never be tracked.
 
 ---
